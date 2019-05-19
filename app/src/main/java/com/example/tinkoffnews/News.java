@@ -10,14 +10,14 @@ import java.util.List;
 public class News {
     @SerializedName("payload")
     @Expose
-    private Object items;
+    private LinkedTreeMap payload;
 
 
-    Object getItems() {
-        return items;
+    LinkedTreeMap getItems() {
+        return payload;
     }
 
-    public void setItems(Object items) {
-        this.items = items;
+    public void setItems(LinkedTreeMap items) {
+        this.payload = items;
     }
 }

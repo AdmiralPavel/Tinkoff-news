@@ -8,6 +8,6 @@ import retrofit2.http.Query;
 public interface TinkoffApi {
     @GET("v1/news")
     Call<ListOfItems> getListOfItems();
-    @GET("v1/news_content")
-    Call<News> getItem(@Query("topicId") String id);
+    @GET("v1/news_content/")
+    Call<News> getItem(@Query("id") String id);
 }

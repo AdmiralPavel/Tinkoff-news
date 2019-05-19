@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Tinkoff news</string>
+    <string name="hint">You haven\'t download any data. Please swipe to refresh</string>
 </resources>

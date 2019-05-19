@@ -9,7 +9,6 @@ import java.util.List;
 //Класс для получения и десерализации ответа от сервера
 public class ListOfItems {
     @SerializedName("payload")
-    @Expose
     private List<LinkedTreeMap> items;
 
 

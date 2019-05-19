@@ -11,6 +11,8 @@ import android.os.Bundle;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.View;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.gson.internal.LinkedTreeMap;
@@ -28,11 +30,13 @@ public class MainActivity extends AppCompatActivity implements RecyclerViewAdapt
     ListOfItems list;
     //Список с заголовками
     List<String> topicNames;
+    List<String> id;
     SwipeRefreshLayout swipeRefreshLayout;
 
-    //Метод для получения кэшированного списка из ллокальной базы данных
+    //Метод для получения кэшированного списка из локальной базы данных
     private void getFromDB() {
         topicNames = new ArrayList<>();
+        id = new ArrayList<>();
         SQLiteDatabase db = getBaseContext().openOrCreateDatabase("topicNames.db", MODE_PRIVATE, null);
         db.execSQL("CREATE TABLE IF NOT EXISTS topicNames (name TEXT, id INTEGER)");
         Cursor cursor = db.rawQuery("SELECT * FROM topicNames;", null);
@@ -50,11 +54,13 @@ public class MainActivity extends AppCompatActivity implements RecyclerViewAdapt
                         .replace("rsquo;", "’")
                         .replace("&reg;", "®")
                 );
+                id.add(cursor.getString(1));
                 cursor.moveToNext();
             }
         //В случае, если в локальной БД ничего нет, просим пользователя обновить
-        if (topicNames.size() == 0)
-            topicNames.add("You haven't download any data. Please swipe to refresh");
+        if (topicNames.size() != 0) {
+            findViewById(R.id.textView).setVisibility(View.GONE);
+        }
         cursor.close();
         db.close();
     }
@@ -77,7 +83,6 @@ public class MainActivity extends AppCompatActivity implements RecyclerViewAdapt
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         swipeRefreshLayout = findViewById(R.id.swipe_container);
         swipeRefreshLayout.setOnRefreshListener(this::sendRequests);
-        sendRequests();
         recyclerViewInitialize();
     }
 
@@ -92,12 +97,12 @@ public class MainActivity extends AppCompatActivity implements RecyclerViewAdapt
                     public void onResponse(@NonNull Call<ListOfItems> call, @NonNull Response<ListOfItems> response) {
                         //Кэшируем наш ответ
                         list = response.body();
+                        findViewById(R.id.recyclerView).setEnabled(true);
                         SQLiteDatabase db = getBaseContext().openOrCreateDatabase("topicNames.db", MODE_PRIVATE, null);
                         db.execSQL("CREATE TABLE IF NOT EXISTS topicNames (name TEXT, id INTEGER)");
-                        int i = 0;
                         db.execSQL("DELETE FROM topicNames");
                         for (LinkedTreeMap map : list.getItems()) {
-                            db.execSQL("INSERT INTO topicNames VALUES ('" + ((String) map.get("text")).replace("'", "&#39;") + "', " + i++ + ");");
+                            db.execSQL("INSERT INTO topicNames VALUES ('" + ((String) map.get("text")).replace("'", "&#39;") + "', " + map.get("id") + ");");
                         }
 
                         //Инициализируем recyclerView
@@ -117,8 +122,39 @@ public class MainActivity extends AppCompatActivity implements RecyclerViewAdapt
 
     @Override
     public void onItemClick(View view, int position) {
+        ProgressBar progressBar = findViewById(R.id.progressBar);
+        progressBar.setVisibility(View.VISIBLE);
         Intent intent = new Intent(this, NewsActivity.class);
-        intent.putExtra("id", ((String) list.getItems().get(position).get("id")));
-        startActivity(intent);
+        NetworkApi.getInstance()
+                .getTinkoffApi()
+                .getItem(id.get(position))
+                .enqueue(new Callback<News>() {
+                    //В случае получения ответа с сервера
+                    @Override
+                    public void onResponse(@NonNull Call<News> call, @NonNull Response<News> response) {
+                        News list = response.body();
+                        intent.putExtra("title",  ((String)((LinkedTreeMap)list.getItems().get("title")).get("text")));
+                        intent.putExtra("text", ((String)list.getItems().get("content")).replace("&#39;", "\'")
+                                .replace("&quot;", "\"")
+                                .replace("&nbsp;", " ")
+                                .replace("&laqyo;", "«")
+                                .replace("&raquo;", "»")
+                                .replace("&mdash;", "—")
+                                .replace("&amp;", "&")
+                                .replace("rsquo;", "’")
+                                .replace("&reg;", "®"));
+                        progressBar.setVisibility(View.GONE);
+                        startActivity(intent);
+                    }
+
+                    //Если проблемы с интернетом, показываем сообщение об этом
+                    @Override
+                    public void onFailure(@NonNull Call<News> call, @NonNull Throwable t) {
+                        progressBar.setVisibility(View.GONE);
+                        Toast toast = Toast.makeText(getApplicationContext(), "Failure! Check your internet connection", Toast.LENGTH_SHORT);
+                        toast.show();
+                        //swipeRefreshLayout.setRefreshing(false);
+                    }
+                });
     }
 }
